@@ -22,8 +22,18 @@ Adafruit_DCMotor *rightMotor = AFMS.getMotor(2);  // M2 terminals
 
 const byte PHOTO_TL = A0;  // left photodiode
 const byte PHOTO_TR = A1;  // right photodiode (don't use A4/A5)
-const int threshold = 500; // below this = dark enough, stop
+const byte IR = A2 // IR sensor
+const int lightThreshold = 500; // below this = dark enough, stop
 const int BASE_SPEED = 150; // cruising speed, 0-255
+const int hissThreshold = 500; // furthest distance where it will hiss, in mm
+const int lungeThreshold = 150; // furthest distance where it will lunge, in mm
+
+const uint8_t HIDING = 0; // for when the snake is trying to go somewhere darker
+const uint8_t WAITING = 1; // for when the snake is not in motion
+const uint8_t LUNGING = 2; // for when the snake is lunging at a predator
+
+uint8_t state = HIDING;
+uint16_t hissingVolume = 0;
 
 // PID state: global so findDarkness() can use it
 float integral = 0;
@@ -63,6 +73,7 @@ void findDarkness(const byte leftPin, const byte rightPin, const int lThreshold,
     rightMotor->run(RELEASE);
     integral = 0;
     prevError = error;
+    state = WAITING;
     return;
   }
 
@@ -87,7 +98,45 @@ void findDarkness(const byte leftPin, const byte rightPin, const int lThreshold,
   rightMotor->run(FORWARD);
 }
 
+void watchForPredators() {
+  // Scan with the IR sensor.
+  uint16_t scan1 = analogRead(IR);
+  uint16_t scan2 = analogRead(IR);
+  uint16_t scan3 = analogRead(IR);
+
+  // Calculate the distance in milimeters.
+  float voltage = min(min(scan1, scan2), scan3);
+  voltage = voltage * 5 / 1024;
+  int distance = 94.6 * pow(voltage, 4) +
+    -722.6 * pow(voltage, 3) +
+    2121.1 * pow(voltage, 2) +
+    -3072.9 * voltage +
+    2228.1;
+
+  // Hiss if too close
+  if distance < hissThreshold {
+    hissingVolume = hissThreshold - distance
+  }
+
+  // Lunge if too close
+  if distance < lungeThreshold {
+    state = LUNGING
+    hissingVolume = 0
+  }
+}
+
 void loop() {
-  findDarkness(PHOTO_TL, PHOTO_TR, threshold, BASE_SPEED);
+  if state == HIDING {
+    findDarkness(PHOTO_TL, PHOTO_TR, lightThreshold, BASE_SPEED);
+  }
+  else if state == WAITING {
+    watchForPredators();
+  }
+  else if state == LUNGING {
+
+  }
+  else {
+    Serial.println("No Vlaid State!")
+  }
   delay(10);
 }
