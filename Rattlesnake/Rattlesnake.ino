@@ -25,7 +25,7 @@ const byte PHOTO_TR = A1;  // right photodiode (don't use A4/A5)
 const byte IR = A2 // IR sensor
 const int lightThreshold = 500; // below this = dark enough, stop
 const int BASE_SPEED = 150; // cruising speed, 0-255
-const int hissThreshold = 500; // furthest distance where it will hiss, in mm
+const int rattleThreshold = 500; // furthest distance where it will rattle, in mm
 const int lungeThreshold = 150; // furthest distance where it will lunge, in mm
 
 const uint8_t HIDING = 0; // for when the snake is trying to go somewhere darker
@@ -33,7 +33,8 @@ const uint8_t WAITING = 1; // for when the snake is not in motion
 const uint8_t LUNGING = 2; // for when the snake is lunging at a predator
 
 uint8_t state = HIDING;
-uint16_t hissingVolume = 0;
+uint16_t rattlingSpeed = 0;
+unsigned long lungeStart;
 
 // PID state: global so findDarkness() can use it
 float integral = 0;
@@ -113,15 +114,16 @@ void watchForPredators() {
     -3072.9 * voltage +
     2228.1;
 
-  // Hiss if too close
-  if distance < hissThreshold {
-    hissingVolume = hissThreshold - distance
+  // Rattle if too close
+  if distance < rattleThreshold {
+    rattlingSpeed = rattleThreshold - distance
   }
 
   // Lunge if too close
   if distance < lungeThreshold {
     state = LUNGING
-    hissingVolume = 0
+    rattlingSpeed = 0
+    lungeStart = millis()
   }
 }
 
@@ -133,7 +135,17 @@ void loop() {
     watchForPredators();
   }
   else if state == LUNGING {
-
+    if millis() - lungeStart < lungeTime {
+      leftMotor->setSpeed(225);
+      rightMotor->setSpeed(225);
+      leftMotor->run(BACKWARD);
+      rightMotor->run(BACKWARD);
+    }
+    else {
+      state = HIDING;
+      leftMotor->setSpeed(0);
+      rightMotor->setSpeed(0);
+    }
   }
   else {
     Serial.println("No Vlaid State!")
