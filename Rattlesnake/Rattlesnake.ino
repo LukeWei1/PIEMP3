@@ -1,4 +1,4 @@
-//#include <Adafruit_MotorShield.h>
+#include <Adafruit_MotorShield.h>
 #include <Servo.h>
 
 /*Adafruit_MotorShield AFMS = Adafruit_MotorShield();
@@ -18,21 +18,21 @@ void setup() {
 //void loop() {}
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
-Adafruit_DCMotor *leftMotor  = AFMS.getMotor(3);  // M1 terminals
-Adafruit_DCMotor *rightMotor = AFMS.getMotor(2);  // M2 terminals
+Adafruit_DCMotor *leftMotor  = AFMS.getMotor(1);  // M1 terminals
+Adafruit_DCMotor *rightMotor = AFMS.getMotor(4);  // M4 terminals
 
 const byte PHOTO_TL = A0;  // left photodiode
 const byte PHOTO_TR = A1;  // right photodiode (don't use A4/A5)
 const byte IR = A2; // IR sensor
 const uint8_t RATTLE = 3; // rattle servo port
-const int lightThreshold = 500; // below this = dark enough, stop
-const int BASE_SPEED = 150; // cruising speed, 0-255
-const int rattleThreshold = 500; // furthest distance where it will rattle, in mm
-const int lungeThreshold = 150; // furthest distance where it will lunge, in mm
+const int lightThreshold = 600; // below this = dark enough, stop
+const int BASE_SPEED = 50; // cruising speed, 0-255
+const int rattleThreshold = 600; // furthest distance where it will rattle, in mm
+const int lungeThreshold = 250; // furthest distance where it will lunge, in mm
 const int RATTLE_CENTER = 50; // center of oscilation of rattle
 const int RATTLE_AMPLITUDE = 75; // how far the rattle will go from RATTLE_CENTER, ing deg
 const float RATTLE_SPEED = 0.004; // scale the rattle's speed from ms to rad
-const float LUNGE_TIME = 1.0; // the time the snake will take to lunge, in s
+const int LUNGE_TIME = 1000; // the time the snake will take to lunge, in ms
 Servo rattleServo; // the servo that controls the rattle
 
 const uint8_t HIDING = 0; // for when the snake is trying to go somewhere darker
@@ -72,7 +72,7 @@ void findDarkness(const byte leftPin, const byte rightPin, const int lThreshold,
   // --- Sensors ---
   float left = analogRead(leftPin);
   float right = analogRead(rightPin);
-  Serial.println(left);
+  Serial.println("light: " + left);
   float error = left - right;            // setpoint is 0: both sides equally bright
 
   // --- Found darkness: stop ---
@@ -101,10 +101,14 @@ void findDarkness(const byte leftPin, const byte rightPin, const int lThreshold,
   int speed = left / 5;
 
   // --- Drive motors ---
-  leftMotor->setSpeed(constrain(baseSpeed + speed, 0, 255));
-  rightMotor->setSpeed(constrain(baseSpeed - speed, 0, 255));
-  leftMotor->run(FORWARD);
-  rightMotor->run(FORWARD);
+  int motorSpeed = baseSpeed + speed;
+  Serial.println("unclamped: " + motorSpeed);
+  motorSpeed = constrain(motorSpeed, 0, 100);
+  Serial.println("clamped: " + motorSpeed);
+  leftMotor->setSpeed(motorSpeed);
+  rightMotor->setSpeed(motorSpeed);
+  leftMotor->run(BACKWARD);
+  rightMotor->run(BACKWARD);
 }
 
 void watchForPredators() {
@@ -131,6 +135,9 @@ void watchForPredators() {
   if(distance < rattleThreshold) {
     rattlingAmount = RATTLE_AMPLITUDE;
   }
+  else {
+    rattlingAmount = 0;
+  }
 
   // Lunge if too close
   if(distance < lungeThreshold) {
@@ -141,6 +148,7 @@ void watchForPredators() {
 }
 
 void loop() {
+  Serial.println(state);
   // Execute state specific actions:
   if(state == HIDING) {
     // If hiding, go backwards into the cave
@@ -159,8 +167,8 @@ void loop() {
     if(millis() - lungeStart < LUNGE_TIME) {
       leftMotor->setSpeed(225);
       rightMotor->setSpeed(225);
-      leftMotor->run(BACKWARD);
-      rightMotor->run(BACKWARD);
+      leftMotor->run(FORWARD);
+      rightMotor->run(FORWARD);
     }
     else {
       state = HIDING;
