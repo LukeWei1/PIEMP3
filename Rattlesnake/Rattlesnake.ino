@@ -21,11 +21,10 @@ Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_DCMotor *leftMotor  = AFMS.getMotor(1);  // M1 terminals
 Adafruit_DCMotor *rightMotor = AFMS.getMotor(4);  // M4 terminals
 
-const byte PHOTO_TL = A0;  // left photodiode
-const byte PHOTO_TR = A1;  // right photodiode (don't use A4/A5)
+const byte PHOTO = A0;  //photodiode
 const byte IR = A2; // IR sensor
 const uint8_t RATTLE = 3; // rattle servo port
-const int lightThreshold = 600; // below this = dark enough, stop
+const float lightThreshold = 630.0; // below this = dark enough, stop
 const int BASE_SPEED = 50; // cruising speed, 0-255
 const int rattleThreshold = 600; // furthest distance where it will rattle, in mm
 const int lungeThreshold = 250; // furthest distance where it will lunge, in mm
@@ -50,8 +49,8 @@ unsigned long prevTime = 0;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(PHOTO_TR, INPUT);
-  pinMode(PHOTO_TL, INPUT);
+  pinMode(PHOTO, INPUT);
+
   if (!AFMS.begin()) {
     Serial.println("Shield not found");
     while (1);
@@ -62,7 +61,7 @@ void setup() {
   rattleServo.attach(RATTLE);
 }
 
-void findDarkness(const byte leftPin, const byte rightPin, const int lThreshold, const int baseSpeed) {
+void findDarkness(const byte photoPin, const float lThreshold, const int baseSpeed) {
   // --- Timing ---
   unsigned long now = millis();
   float dt = (now - prevTime) / 1000.0;  // seconds since last call
@@ -70,14 +69,14 @@ void findDarkness(const byte leftPin, const byte rightPin, const int lThreshold,
   prevTime = now;
 
   // --- Sensors ---
-  float left = analogRead(leftPin);
-  float right = analogRead(rightPin);
-  Serial.println("light: " + left);
-  float error = left - right;            // setpoint is 0: both sides equally bright
+  float reading = analogRead(photoPin);
+
+  //Serial.println("light: " + reading);
+  float error = reading-lThreshold;            // setpoint is 0: both sides equally bright
 
   // --- Found darkness: stop ---
   //if (left < lThreshold && right < lThreshold) {
-  if (left < lThreshold) {
+  if (reading<lThreshold) {
     leftMotor->run(RELEASE);
     rightMotor->run(RELEASE);
     integral = 0;
@@ -97,8 +96,8 @@ void findDarkness(const byte leftPin, const byte rightPin, const int lThreshold,
   prevError = error;
 
   float output = kp * error + ki * integral + kd * derivative;
-  //int speed = int(output);
-  int speed = left / 5;
+  int speed = int(output);
+
 
   // --- Drive motors ---
   int motorSpeed = baseSpeed + speed;
@@ -152,7 +151,7 @@ void loop() {
   // Execute state specific actions:
   if(state == HIDING) {
     // If hiding, go backwards into the cave
-    findDarkness(PHOTO_TL, PHOTO_TR, lightThreshold, BASE_SPEED);
+    findDarkness(PHOTO, lightThreshold, BASE_SPEED);
   }
   else if(state == WAITING) {
     // If waiting, check for predators
@@ -165,8 +164,8 @@ void loop() {
   else if(state == LUNGING) {
     // If lunging, move forward at max speed for LUNGE_TIME then start hiding
     if(millis() - lungeStart < LUNGE_TIME) {
-      leftMotor->setSpeed(225);
-      rightMotor->setSpeed(225);
+      leftMotor->setSpeed(150);
+      rightMotor->setSpeed(150);
       leftMotor->run(FORWARD);
       rightMotor->run(FORWARD);
     }
