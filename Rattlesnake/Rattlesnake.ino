@@ -1,4 +1,4 @@
-#include <Adafruit_MotorShield.h>
+//#include <Adafruit_MotorShield.h>
 #include <Servo.h>
 
 /*Adafruit_MotorShield AFMS = Adafruit_MotorShield();
@@ -23,15 +23,17 @@ Adafruit_DCMotor *rightMotor = AFMS.getMotor(2);  // M2 terminals
 
 const byte PHOTO_TL = A0;  // left photodiode
 const byte PHOTO_TR = A1;  // right photodiode (don't use A4/A5)
-const byte IR = A2 // IR sensor
+const byte IR = A2; // IR sensor
 const uint8_t RATTLE = 3; // rattle servo port
 const int lightThreshold = 500; // below this = dark enough, stop
 const int BASE_SPEED = 150; // cruising speed, 0-255
 const int rattleThreshold = 500; // furthest distance where it will rattle, in mm
 const int lungeThreshold = 150; // furthest distance where it will lunge, in mm
-const int RATTLE_CENTER = 90; // center of oscilation of rattle
-const int RATTLE_AMPLITUDE = 1; // scale rattlingAmount from mm to deg
-const float RATTLE_SPEED = 0.001; // scale the rattle's speed from ms to rad
+const int RATTLE_CENTER = 50; // center of oscilation of rattle
+const int RATTLE_AMPLITUDE = 75; // how far the rattle will go from RATTLE_CENTER, ing deg
+const float RATTLE_SPEED = 0.004; // scale the rattle's speed from ms to rad
+const float LUNGE_TIME = 1.0; // the time the snake will take to lunge, in s
+Servo rattleServo; // the servo that controls the rattle
 
 const uint8_t HIDING = 0; // for when the snake is trying to go somewhere darker
 const uint8_t WAITING = 1; // for when the snake is not in motion
@@ -119,33 +121,42 @@ void watchForPredators() {
     2121.1 * pow(voltage, 2) +
     -3072.9 * voltage +
     2228.1;
+  distance = constrain(distance, 200, 1000);
+  if(voltage == 0) {
+    distance = 1000;
+  }
+  Serial.println(distance);
 
   // Rattle if too close
-  if distance < rattleThreshold {
-    rattlingAmount = (rattleThreshold - distance) * RATTLE_AMPLITUDE
+  if(distance < rattleThreshold) {
+    rattlingAmount = RATTLE_AMPLITUDE;
   }
 
   // Lunge if too close
-  if distance < lungeThreshold {
-    state = LUNGING
-    rattlingSpeed = 0
-    lungeStart = millis()
+  if(distance < lungeThreshold) {
+    state = LUNGING;
+    rattlingAmount = 0;
+    lungeStart = millis();
   }
 }
 
 void loop() {
   // Execute state specific actions:
-  if state == HIDING {
+  if(state == HIDING) {
     // If hiding, go backwards into the cave
     findDarkness(PHOTO_TL, PHOTO_TR, lightThreshold, BASE_SPEED);
   }
-  else if state == WAITING {
+  else if(state == WAITING) {
     // If waiting, check for predators
     watchForPredators();
+
+    // Move the rattle
+    uint16_t rattlePos = RATTLE_CENTER + rattlingAmount * sin(float(millis()) * RATTLE_SPEED);
+    rattleServo.write(rattlePos);
   }
-  else if state == LUNGING {
-    // If lunging, move forward at max speed for lungeTime then start hiding
-    if millis() - lungeStart < lungeTime {
+  else if(state == LUNGING) {
+    // If lunging, move forward at max speed for LUNGE_TIME then start hiding
+    if(millis() - lungeStart < LUNGE_TIME) {
       leftMotor->setSpeed(225);
       rightMotor->setSpeed(225);
       leftMotor->run(BACKWARD);
@@ -158,12 +169,8 @@ void loop() {
     }
   }
   else {
-    Serial.println("No Vlaid State!")
+    Serial.println("No Vlaid State!");
   }
-
-  // Move the rattle
-  rattlePos = RATTLE_CENTER + rattlingAmount * sin(float(millis()) * RATTLE_SPEED);
-  rattleServo.write(rattlePos);
 
   // Delay before the next frame
   delay(10);
