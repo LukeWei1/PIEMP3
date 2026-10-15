@@ -1,32 +1,16 @@
 #include <Adafruit_MotorShield.h>
 #include <Servo.h>
 
-/*Adafruit_MotorShield AFMS = Adafruit_MotorShield();
-Adafruit_DCMotor *motor = AFMS.getMotor(3);   // M3 terminals
-
-void setup() {
-  Serial.begin(9600);
-  if (!AFMS.begin()) {
-    Serial.println("Shield not found - check A4/A5/SDA/SCL pins");
-    while (1);
-  }
-  Serial.println("Shield found");
-  motor->setSpeed(255);   // full speed
-  motor->run(RELEASE);
-}*/
-
-//void loop() {}
-
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
-Adafruit_DCMotor *leftMotor  = AFMS.getMotor(1);  // M1 terminals
-Adafruit_DCMotor *rightMotor = AFMS.getMotor(4);  // M4 terminals
+Adafruit_DCMotor *leftMotor  = AFMS.getMotor(1);  // M1 terminal
+Adafruit_DCMotor *rightMotor = AFMS.getMotor(4);  // M4 terminal
 
 const byte PHOTO = A0;  //photodiode
 const byte IR = A2; // IR sensor
 const uint8_t RATTLE = 3; // rattle servo port
 const float lightThreshold = 630.0; // below this = dark enough, stop
 const int BASE_SPEED = 50; // cruising speed, 0-255
-const int rattleThreshold = 600; // furthest distance where it will rattle, in mm
+const int rattleThreshold = 650; // furthest distance where it will rattle, in mm
 const int lungeThreshold = 250; // furthest distance where it will lunge, in mm
 const int RATTLE_CENTER = 50; // center of oscilation of rattle
 const int RATTLE_AMPLITUDE = 75; // how far the rattle will go from RATTLE_CENTER, ing deg
@@ -48,17 +32,21 @@ float prevError = 0;
 unsigned long prevTime = 0;
 
 void setup() {
+  // Connect to the serial port for debugging
   Serial.begin(9600);
-  pinMode(PHOTO, INPUT);
 
+  // Setup the connections to the Arduino
+  pinMode(PHOTO, INPUT);
   if (!AFMS.begin()) {
     Serial.println("Shield not found");
     while (1);
   }
   leftMotor->run(RELEASE);
   rightMotor->run(RELEASE);
-  prevTime = millis();
   rattleServo.attach(RATTLE);
+
+  // record the starting time
+  prevTime = millis();
 }
 
 void findDarkness(const byte photoPin, const float lThreshold, const int baseSpeed) {
@@ -128,7 +116,6 @@ void watchForPredators() {
   if(voltage == 0) {
     distance = 1000;
   }
-  Serial.println(distance);
 
   // Rattle if too close
   if(distance < rattleThreshold) {
